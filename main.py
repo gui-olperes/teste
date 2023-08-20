@@ -1,56 +1,36 @@
+from flask import render_template, request, redirect, url_for, Flask
 
-import numpy as np
-import pyautogui
+app = Flask(__name__)
 
-# Inicialização da tela do Paintm
-pyautogui.hotkey('win', 'r')
-pyautogui.write('mspaint')
-pyautogui.press('enter')
-pyautogui.sleep(2)
 
-# Configurações
-lower_skin = np.array([0, 20, 70], dtype=np.uint8)
-upper_skin = np.array([20, 255, 255], dtype=np.uint8)
-brush_color = (0, 0, 255)  # Vermelho
-brush_radius = 5
+# Dados fictícios
+processos_ficticios = [
+    {"id": 1, "nome": "Processo 1"},
+    {"id": 2, "nome": "Processo 2"},
+    # Adicione mais dados fictícios aqui
+]
 
-# Captura de vídeo da webcam
-cap = cv2.VideoCapture(0)
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    page = int(request.args.get('page', 1))
+    processos_por_pagina = 3
+    total_processos = len(processos_ficticios)
+    total_pages = (total_processos + processos_por_pagina - 1) // processos_por_pagina
 
-# Loop principal
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+    start_idx = (page - 1) * processos_por_pagina
+    end_idx = min(start_idx + processos_por_pagina, total_processos)
+    paginated_processos = processos_ficticios[start_idx:end_idx]
 
-    # Conversão para HSV
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    if request.method == 'POST':
+        selected_processos = request.form.getlist('processo')
+        checkbox_states = {str(processo['id']): 'checked' for processo in processos_ficticios if str(processo['id']) in selected_processos}
+    else:
+        checkbox_states = {}
 
-    # Detecção da região de interesse (dedo)
-    mask = cv2.inRange(hsv_frame, lower_skin, upper_skin)
-    mask = cv2.erode(mask, None, iterations=2)
-    mask = cv2.dilate(mask, None, iterations=2)
-
-    # Encontrar contornos na máscara
-    contours, _ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    if contours:
-        # Encontrar o maior contorno (dedo)
-        max_contour = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(max_contour) > 1000:
-            # Encontrar o centro do contorno
-            M = cv2.moments(max_contour)
-            cx = int(M["m10"] / M["m00"])
-            cy = int(M["m01"] / M["m00"])
-
-            # Simular o clique do mouse para desenhar no Paint
-            pyautogui.moveTo(cx, cy)
-            pyautogui.click()
-            pyautogui.sleep(0.1)
-
-    cv2.imshow("Frame", frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
+    return render_template(
+        'index.html',
+        processos=paginated_processos,
+        checkbox_states=checkbox_states,
+        total_pages=total_pages,
+        current_page=page
+    )
